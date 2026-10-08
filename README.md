@@ -95,6 +95,16 @@ colour it last applied and re-applies it when they differ, so switching theme mo
 the keyboard with it. The file is read bounded and matched whole (32 bytes,
 `#?RRGGBB`); anything else is ignored rather than guessed at.
 
+### Effects get the theme's palette, not black
+
+Three profiles ship a **black** start and end in OpenLinkHub's own store —
+`gradient`, `colorwarp` and `watercolor` (measured). Applied literally they look
+exactly like `off`: the keyboard goes dark while the effect is nominally running.
+A colourless effect is therefore given the theme's palette instead: `accent` for the
+start and `selection` for the end, read from the theme's `colors.toml`. `off` keeps
+its black — there, dark is the point. An effect that carries real colours
+(`circle`, `storm`, …) is left exactly as OpenLinkHub stores it.
+
 ## Provenance
 
 Keyglow is written from scratch against OpenLinkHub's documented HTTP API. It borrows

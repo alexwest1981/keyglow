@@ -27,6 +27,7 @@ colour whenever the theme file changes.
 
 import sys
 import tempfile
+import tomllib
 
 sys.dont_write_bytecode = True  # a .pyc here makes the shell reload the widget
 
@@ -67,6 +68,7 @@ THEME_RGB = os.path.join(
     os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
     "omarchy", "current", "theme", "keyboard.rgb",
 )
+THEME_COLORS = os.path.join(os.path.dirname(THEME_RGB), "colors.toml")
 
 
 def record_action(cmd, args):
@@ -95,6 +97,27 @@ def theme_color(path=None):
         return None
     match = re.fullmatch(r"#?([0-9a-fA-F]{6})", raw.strip())
     return "#" + match.group(1).lower() if match else None
+
+
+def theme_palette(path=None):
+    """The theme's colours, accent first, for effects that need more than one.
+
+    Omarchy themes are TOML (`colors.toml`); `accent` is the colour a theme is
+    known by, `selection` and `foreground` give a second one to run a gradient
+    to. Unreadable file, bad TOML or a malformed colour means an empty list —
+    the caller then keeps whatever it had rather than inventing a colour.
+    """
+    try:
+        with open(path or THEME_COLORS, "rb") as fh:
+            doc = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return []
+    out = []
+    for key in ("accent", "selection", "foreground"):
+        value = str(doc.get(key, "")).strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", value) and value.lower() not in out:
+            out.append(value.lower())
+    return out
 
 
 def cmd_theme(serial, args):
@@ -241,12 +264,30 @@ def set_effect(serial, profile):
     return body
 
 
+def is_black(node):
+    """True for a colour that renders as nothing: missing, or all channels 0."""
+    if not node:
+        return True
+    return not any(node.get(k, 0) for k in ("red", "green", "blue"))
+
+
 def payload_from(serial, profile, current):
+    start, end = current.get("start"), current.get("end")
+    # Measured 2026-10-08: `gradient`, `colorwarp` and `watercolor` carry a black
+    # start and end, so applying them literally leaves the keyboard dark — it
+    # looks exactly like `off` while being a different profile. A colourless
+    # effect gets the theme's palette instead. `off` keeps its black: dark is the
+    # point there, and it is the one profile where black is meant.
+    if profile != "off" and is_black(start) and is_black(end):
+        palette = theme_palette()
+        if palette:
+            start = color_node(hex_to_rgb(palette[0]))
+            end = color_node(hex_to_rgb(palette[1] if len(palette) > 1 else palette[0]))
     return {
         "deviceId": serial,
         "profile": profile,
-        "startColor": current.get("start"),
-        "endColor": current.get("end"),
+        "startColor": start,
+        "endColor": end,
         "middleColor": current.get("middle"),
         "speed": clamp_speed(current.get("speed", 1)),
         "alternateColors": current.get("alternateColors", False),
@@ -278,6 +319,7 @@ def status():
         "brightness": state.get("brightness", -1),
         "reported_brightness": -1,
         "theme_color": theme_color() or "",
+        "theme_palette": theme_palette(),
         "follow_theme": bool(state.get("follow_theme", False)),
         "profiles": [],
     }
@@ -346,6 +388,40 @@ def selftest():
         assert theme_color(theme_file("#e4c124\n0xdeadbeef")) is None
         assert theme_color(theme_file("rgb(1,2,3)")) is None
         assert theme_color(os.path.join(tmp, "saknas")) is None
+
+    # The palette, and the rule that a colourless effect must not stay dark while
+    # `off` must. Both are checked against a theme written into the test's own
+    # directory, so the machine's real theme cannot change the outcome.
+    with tempfile.TemporaryDirectory() as tmp:
+        colors = os.path.join(tmp, "colors.toml")
+
+        def write_colors(text):
+            with open(colors, "w") as fh:
+                fh.write(text)
+            return colors
+
+        assert theme_palette(write_colors('accent = "#e4c124"\nselection = "#3B2A4D"\nforeground = "nonsense"\n')) \
+            == ["#e4c124", "#3b2a4d"], "bad values are dropped, colours lower-cased"
+        assert theme_palette(write_colors('accent = "#e4c124"\nselection = "#e4c124"\n')) == ["#e4c124"]
+        assert theme_palette(write_colors("inte = 'toml'")) == []
+        assert theme_palette(os.path.join(tmp, "saknas")) == []
+
+        write_colors('accent = "#e4c124"\nselection = "#3b2a4d"\n')
+        saved_colors = globals()["THEME_COLORS"]
+        globals()["THEME_COLORS"] = colors
+        try:
+            black = {"start": {"red": 0, "green": 0, "blue": 0}, "end": {"red": 0, "green": 0, "blue": 0}}
+            got = payload_from("S", "gradient", dict(black))["startColor"]
+            assert (got["red"], got["green"], got["blue"]) == (0xE4, 0xC1, 0x24), got
+            end = payload_from("S", "gradient", dict(black))["endColor"]
+            assert (end["red"], end["green"], end["blue"]) == (0x3B, 0x2A, 0x4D), end
+            assert payload_from("S", "off", dict(black))["startColor"]["red"] == 0, "off must stay dark"
+            half = {"start": {"red": 0, "green": 0, "blue": 0}}
+            assert payload_from("S", "watercolor", half)["endColor"]["red"] == 0x3B, "missing end -> palette[1]"
+            live = {"start": {"red": 255, "green": 0, "blue": 0}, "end": {"red": 0, "green": 255, "blue": 0}}
+            assert payload_from("S", "circle", dict(live))["endColor"]["green"] == 255, "stored colour kept"
+        finally:
+            globals()["THEME_COLORS"] = saved_colors
 
     check('{"code":200,"status":1,"message":"ok"}', "x")
     try:
