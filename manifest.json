@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.alexwest1981.omacorsair",
+  "name": "OmaCorsair",
+  "version": "1.0.0",
+  "author": "Alex",
+  "license": "MIT",
+  "description": "Corsair keyboard lighting from the Omarchy bar: colour, brightness and RGB effects, applied through OpenLinkHub",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Corsair",
+    "description": "Colour, brightness and RGB effects for a Corsair keyboard, driven through OpenLinkHub",
+    "category": "Hardware",
+    "aliases": [
+      "corsair",
+      "keyboard",
+      "k60",
+      "rgb",
+      "openlinkhub"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "onlyWhenConnected": false
+    },
+    "schema": [
+      {
+        "key": "onlyWhenConnected",
+        "type": "boolean",
+        "label": "Show in bar only when connected",
+        "description": "Hide the widget when no supported Corsair keyboard is present",
+        "defaultValue": false
+      }
+    ]
+  }
+}
