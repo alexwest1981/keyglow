@@ -16,9 +16,17 @@ Commands (all print one JSON object on stdout):
   brightness <0-3>        hardware brightness level
   effect <profileId>      switch RGB profile (any id from `status.profiles`)
   off                      same as `effect off`
+  theme                    follow the Omarchy theme's keyboard.rgb (and apply it now)
+  theme off                stop following the theme
+
+Theming: Omarchy lets a theme ship `keyboard.rgb` next to its `colors.toml` — one
+RRGGBB colour, optionally with a leading `#` (see Omarchy's own theming notes; the
+stock tokyo-night theme ships `ff00ff`). With `theme` on, the panel re-applies that
+colour whenever the theme file changes.
 """
 
 import sys
+import tempfile
 
 sys.dont_write_bytecode = True  # a .pyc here makes the shell reload the widget
 
@@ -53,6 +61,12 @@ def http(path, payload=None, method="GET"):
 
 
 LAST_ACTION = os.path.join(os.path.dirname(STATE_PATH), "last-action.json")
+# Omarchy keeps the active theme here; a theme may ship keyboard.rgb beside its
+# colors.toml, and Omarchy's own tokyo-night ships one (`ff00ff`).
+THEME_RGB = os.path.join(
+    os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
+    "omarchy", "current", "theme", "keyboard.rgb",
+)
 
 
 def record_action(cmd, args):
@@ -64,6 +78,35 @@ def record_action(cmd, args):
             json.dump({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "cmd": cmd, "args": list(args)}, fh)
     except OSError:
         pass
+
+
+def theme_color(path=None):
+    """The active theme's keyboard colour, or None when it ships none.
+
+    Omarchy's convention is one RRGGBB colour in `keyboard.rgb`, optionally with
+    a leading `#` (its own tokyo-night writes `ff00ff`, this machine's theme
+    writes `#e4c124`). Read bounded and matched whole, so a hand-edited file
+    cannot smuggle anything in: a short read returns None rather than a guess.
+    """
+    try:
+        with open(path or THEME_RGB) as fh:
+            raw = fh.read(32)
+    except OSError:
+        return None
+    match = re.fullmatch(r"#?([0-9a-fA-F]{6})", raw.strip())
+    return "#" + match.group(1).lower() if match else None
+
+
+def cmd_theme(serial, args):
+    """Follow the theme's colour. `theme off` stops following."""
+    if args and args[0].lower() in ("off", "av"):
+        write_state(follow_theme=False)
+        return
+    hexcolor = theme_color()
+    if not hexcolor:
+        fail("temat har ingen keyboard.rgb (inget att följa)")
+    set_color(serial, hexcolor)
+    write_state(follow_theme=True, theme_color=hexcolor)
 
 
 def read_state():
@@ -234,6 +277,8 @@ def status():
         # software level applied", not "dark", so it must not be shown as ours.
         "brightness": state.get("brightness", -1),
         "reported_brightness": -1,
+        "theme_color": theme_color() or "",
+        "follow_theme": bool(state.get("follow_theme", False)),
         "profiles": [],
     }
     try:
@@ -283,6 +328,25 @@ def selftest():
     assert hex_to_rgb("f80") == [255, 136, 0]
     assert rgb_to_hex({"red": 255, "green": 136, "blue": 0}) == "#ff8800"
     assert clamp_speed(0) == 1 and clamp_speed(99) == 10 and clamp_speed(None) == 1
+
+    # The theme file is user-editable and outside this program's control, so the
+    # parser is checked against what Omarchy's own themes write and against the
+    # shapes that must be refused rather than guessed at.
+    with tempfile.TemporaryDirectory() as tmp:
+        def theme_file(content, name="keyboard.rgb"):
+            path = os.path.join(tmp, name)
+            with open(path, "w") as fh:
+                fh.write(content)
+            return path
+
+        assert theme_color(theme_file("#e4c124\n")) == "#e4c124"   # this machine
+        assert theme_color(theme_file("ff00ff")) == "#ff00ff"      # tokyo-night
+        assert theme_color(theme_file("  FF00FF  \n")) == "#ff00ff"
+        assert theme_color(theme_file("#abc")) is None             # short form
+        assert theme_color(theme_file("#e4c124\n0xdeadbeef")) is None
+        assert theme_color(theme_file("rgb(1,2,3)")) is None
+        assert theme_color(os.path.join(tmp, "saknas")) is None
+
     check('{"code":200,"status":1,"message":"ok"}', "x")
     try:
         check('{"code":200,"status":0,"message":"Invalid speed"}', "colour")
@@ -312,7 +376,10 @@ def main(argv):
         return
 
     serial, _ = find_serial()
-    if not serial:
+    # `theme off` is a state flag, not a keyboard action: it must work with the
+    # keyboard unplugged (or OpenLinkHub down) so following can always be stopped.
+    theme_off = cmd == "theme" and bool(args) and args[0].lower() in ("off", "av")
+    if not serial and not theme_off:
         fail("keyboard not found (OpenLinkHub running?)")
 
     try:
@@ -322,6 +389,8 @@ def main(argv):
             set_brightness(serial, max(0, min(3, int(args[0]))))
         elif cmd == "effect":
             set_effect(serial, args[0])
+        elif cmd == "theme":
+            cmd_theme(serial, args)
         elif cmd == "off":
             set_effect(serial, "off")
         else:

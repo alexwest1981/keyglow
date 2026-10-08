@@ -5,7 +5,8 @@ for a Corsair keyboard, applied through [OpenLinkHub](https://openlinkhub.dev/).
 
 The bar shows a keyboard glyph in the colour you last applied. Click it for a panel
 with colour swatches, a 0–3 brightness step, every RGB effect the keyboard knows,
-and a link to the full OpenLinkHub dashboard (per-key colours, macros, key remapping).
+a **follow-the-theme** toggle, and a link to the full OpenLinkHub dashboard (per-key
+colours, macros, key remapping).
 
 ![preview](preview.png)
 
@@ -76,6 +77,33 @@ matter, and the order is the whole trick:
 
 Brightness is `POST /api/brightness {"deviceId": …, "brightness": 0-3}` — levels,
 not percent.
+
+## Following the theme
+
+Omarchy lets a theme ship a `keyboard.rgb` file next to its `colors.toml` — one
+RRGGBB colour, optionally with a leading `#`. The stock `tokyo-night` theme writes
+`ff00ff`; a theme without the file is simply skipped. Turn following on with the
+panel's colour row or directly:
+
+```bash
+python3 ~/.config/omarchy/plugins/io.github.alexwest1981.keyglow/corsair_ctl.py theme
+python3 ~/.config/omarchy/plugins/io.github.alexwest1981.keyglow/corsair_ctl.py theme off
+```
+
+While it is on, the panel's regular status poll compares the theme file with the
+colour it last applied and re-applies it when they differ, so switching theme moves
+the keyboard with it. The file is read bounded and matched whole (32 bytes,
+`#?RRGGBB`); anything else is ignored rather than guessed at.
+
+## Provenance
+
+Keyglow is written from scratch against OpenLinkHub's documented HTTP API. It borrows
+no code from OpenLinkHub or from any other Corsair plugin: OpenLinkHub is a *runtime
+dependency* — a separate GPL-3.0 service that owns the keyboard over `hidraw` and
+answers on `127.0.0.1:27003` — and nothing of its source is copied, linked or vendored
+here. The `keyboard.rgb` convention is Omarchy's own theme format (documented in
+Omarchy's theming notes and used by its stock themes), not something this plugin
+invented or borrowed.
 
 ## Limitations (measured, not guessed)
 

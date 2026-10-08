@@ -33,6 +33,8 @@ Panel {
   property var profiles: []
   property string currentColor: ""
   property int brightnessLevel: -1
+  property string themeColor: ""
+  property bool followTheme: false
 
   readonly property var swatches: ["#ff8800", "#ff3b30", "#ffd60a", "#30d158", "#00cccc", "#0a84ff", "#bf5af2", "#ffffff"]
   // The bar glyph carries the colour this panel last applied; with nothing
@@ -55,6 +57,10 @@ Panel {
   function setColor(hex) { root.currentColor = hex; root.act(["color", hex]) }
   function setBrightness(level) { root.brightnessLevel = level; root.act(["brightness", String(level)]) }
   function setEffect(id) { root.act(["effect", id]) }
+  function toggleTheme() {
+    if (root.themeColor === "" && !root.followTheme) return   // nothing to follow
+    root.act(root.followTheme ? ["theme", "off"] : ["theme"])
+  }
 
   function openControlPanel() {
     Quickshell.execDetached(["xdg-open", "http://127.0.0.1:27003/index.html"])
@@ -76,6 +82,14 @@ Panel {
           root.profiles = Array.isArray(d.profiles) ? d.profiles : []
           root.currentColor = d.color || ""
           root.brightnessLevel = (typeof d.brightness === "number") ? d.brightness : -1
+          root.themeColor = d.theme_color || ""
+          root.followTheme = d.follow_theme === true
+          // Following means this panel re-applies the colour whenever the theme
+          // file changes. The poll is the only watcher there is, and the CLI is
+          // the only writer — nothing here talks to OpenLinkHub itself.
+          if (root.followTheme && root.themeColor !== "" && root.themeColor !== root.currentColor) {
+            root.act(["theme"])
+          }
         } catch (e) {
           console.warn("Keyglow: status JSON not readable: " + e)
         }
@@ -229,6 +243,40 @@ Panel {
                     onClicked: root.setColor(String(modelData))
                   }
                 }
+              }
+            }
+
+            // Theme sync, in the same shape as the effect rows below.
+            Rectangle {
+              width: parent.width
+              implicitHeight: Style.space(24)
+              radius: Style.space(4)
+              readonly property color faint: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.03)
+              color: root.followTheme ? Style.selectedFillFor(root.foreground, Color.accent)
+                   : (themeRow.containsMouse ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.09) : faint)
+              border.width: root.followTheme ? 1 : 0
+              border.color: Color.accent
+
+              Text {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.themeColor === ""
+                  ? "Temat har ingen keyboard.rgb"
+                  : (root.followTheme ? "Följer temat " + root.themeColor : "Följ temat (" + root.themeColor + ")")
+                color: root.followTheme ? Color.accent : root.foreground
+                opacity: root.themeColor === "" ? 0.6 : 1.0
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              MouseArea {
+                id: themeRow
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.toggleTheme()
               }
             }
           }
