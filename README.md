@@ -1,4 +1,4 @@
-# OmaCorsair
+# Keyglow
 
 Corsair keyboard lighting from the Omarchy bar. Colour, brightness and RGB effects
 for a Corsair keyboard, applied through [OpenLinkHub](https://openlinkhub.dev/).
@@ -44,20 +44,20 @@ is `sudo systemctl restart systemd-udevd`.
 ## Install the plugin
 
 ```bash
-omarchy plugin add https://github.com/alexwest1981/OmaCorsair.git --enable
+omarchy plugin add https://github.com/alexwest1981/keyglow.git --enable
 ```
 
 It lands in the right section of the bar. Move it where you want it:
 
 ```bash
-omarchy bar move io.github.alexwest1981.omacorsair --section right --index 5
+omarchy bar move io.github.alexwest1981.keyglow --section right --index 5
 ```
 
 ## Remove the plugin
 
 ```bash
-omarchy plugin disable io.github.alexwest1981.omacorsair
-omarchy plugin remove io.github.alexwest1981.omacorsair
+omarchy plugin disable io.github.alexwest1981.keyglow
+omarchy plugin remove io.github.alexwest1981.keyglow
 ```
 
 Removing the plugin touches nothing else — OpenLinkHub and your keyboard profiles

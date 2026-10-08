@@ -14,8 +14,8 @@ import qs.Ui
 Panel {
   id: root
 
-  moduleName: "io.github.alexwest1981.omacorsair"
-  ipcTarget: "io.github.alexwest1981.omacorsair"
+  moduleName: "io.github.alexwest1981.keyglow"
+  ipcTarget: "io.github.alexwest1981.keyglow"
 
   // Resolved by position, not by the folder name: a renamed copy still works.
   readonly property string scriptPath: Qt.resolvedUrl("./corsair_ctl.py").toString().replace("file://", "")
@@ -77,7 +77,7 @@ Panel {
           root.currentColor = d.color || ""
           root.brightnessLevel = (typeof d.brightness === "number") ? d.brightness : -1
         } catch (e) {
-          console.warn("OmaCorsair: status JSON not readable: " + e)
+          console.warn("Keyglow: status JSON not readable: " + e)
         }
       }
     }
