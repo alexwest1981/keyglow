@@ -136,22 +136,17 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     visible: root.visible
-    useActiveColor: false
+    // 4.5 refits and repositions a custom iconComponent (11x8 px, pinned to the
+    // bottom edge, plus a sourceBounds binding loop): a single glyph through
+    // `text` takes the same optical path the stock bar icons use.
+    text: root.glyph
+    active: root.connected
+    activeColor: root.litColor
+    foreground: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.6)
     slotSize: Style.bar.iconSlot
     tooltipText: root.product + (root.connected
       ? (" • " + (root.effectName || "—") + " • " + root.brightnessLabel)
       : " • frånkopplad")
-    iconComponent: Component {
-      Text {
-        text: root.glyph
-        anchors.centerIn: parent
-        color: root.connected ? root.litColor : Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.6)
-        font.family: root.fontFamily
-        font.pixelSize: Style.bar.iconFont
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-      }
-    }
     onPressed: function(b) {
       if (b === Qt.RightButton) root.refresh()
       else root.toggle()
